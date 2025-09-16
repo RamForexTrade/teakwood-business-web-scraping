@@ -73,6 +73,17 @@ def initialize_state() -> None:
     """Initialize session state with default AppState if not exists."""
     if "app_state" not in st.session_state:
         st.session_state.app_state = AppState()
+
+        # COMPREHENSIVE GARBAGE COLLECTION: Clean up all temp files when new session starts
+        try:
+            cleanup_stats = comprehensive_garbage_collection()
+            total_cleaned = sum(cleanup_stats.values())
+            if total_cleaned > 0:
+                print(f"🗑️ Garbage collection completed: {cleanup_stats}")
+        except Exception:
+            # Silently handle cleanup errors
+            pass
+
         # Create session directories (skip in cloud to avoid permission issues)
         try:
             create_session_directories(st.session_state.app_state.session_id)
@@ -330,10 +341,10 @@ def cleanup_old_sessions(days_old: int = 7) -> int:
         base_dir = "temp_files"
         if not os.path.exists(base_dir):
             return 0
-        
+
         cutoff_time = datetime.now().timestamp() - (days_old * 24 * 60 * 60)
         cleaned_count = 0
-        
+
         for item in os.listdir(base_dir):
             item_path = os.path.join(base_dir, item)
             if os.path.isdir(item_path) and item.startswith("session_"):
@@ -342,10 +353,124 @@ def cleanup_old_sessions(days_old: int = 7) -> int:
                     import shutil
                     shutil.rmtree(item_path)
                     cleaned_count += 1
-        
+
         return cleaned_count
     except Exception as e:
         return 0
+
+
+def comprehensive_garbage_collection() -> Dict[str, int]:
+    """
+    Comprehensive garbage collection for all temp files and directories.
+    Returns statistics about what was cleaned up.
+    """
+    stats = {
+        'session_dirs_cleaned': 0,
+        'temp_files_cleaned': 0,
+        'downloads_cleaned': 0,
+        'cloud_sessions_cleaned': 0
+    }
+
+    try:
+        # 1. Clean up session directories (aggressive - older than 6 hours)
+        stats['session_dirs_cleaned'] = cleanup_old_sessions(days_old=0.25)  # 6 hours
+
+        # 2. Clean up loose temp files and downloads
+        temp_dirs = ["temp_files", "downloads", "exports", "templates"]
+        for temp_dir in temp_dirs:
+            if os.path.exists(temp_dir):
+                try:
+                    for item in os.listdir(temp_dir):
+                        item_path = os.path.join(temp_dir, item)
+                        if os.path.isfile(item_path):
+                            # Remove files older than 1 hour
+                            if os.path.getctime(item_path) < (datetime.now().timestamp() - 3600):
+                                os.remove(item_path)
+                                stats['temp_files_cleaned'] += 1
+                        elif os.path.isdir(item_path) and temp_dir == "temp_files":
+                            # For temp_files directory, also clean subdirectories
+                            try:
+                                for subitem in os.listdir(item_path):
+                                    subitem_path = os.path.join(item_path, subitem)
+                                    if os.path.isfile(subitem_path):
+                                        if os.path.getctime(subitem_path) < (datetime.now().timestamp() - 3600):
+                                            os.remove(subitem_path)
+                                            stats['temp_files_cleaned'] += 1
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+        # 3. Clean up cloud session data if available
+        try:
+            if 'cloud_session_data' in st.session_state:
+                from services.cloud_session_manager import get_cloud_session_manager
+                cloud_manager = get_cloud_session_manager()
+                cloud_manager._cleanup_old_sessions()
+                stats['cloud_sessions_cleaned'] = 1
+        except Exception:
+            pass
+
+        # 4. Clean up any CSV files in root directory (from exports/downloads)
+        try:
+            for item in os.listdir("."):
+                if item.endswith(('.csv', '.xlsx', '.json')) and os.path.isfile(item):
+                    # Remove export files older than 30 minutes
+                    if os.path.getctime(item) < (datetime.now().timestamp() - 1800):
+                        os.remove(item)
+                        stats['temp_files_cleaned'] += 1
+        except Exception:
+            pass
+
+        # 5. Clean up system temp directory (our app files only)
+        try:
+            import tempfile
+            system_temp = tempfile.gettempdir()
+            app_temp_dir = os.path.join(system_temp, "streamlit_business_tool")
+            if os.path.exists(app_temp_dir):
+                import shutil
+                shutil.rmtree(app_temp_dir, ignore_errors=True)
+                stats['temp_files_cleaned'] += 1
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"⚠️ Garbage collection error: {e}")
+
+    return stats
+
+
+def periodic_cleanup() -> None:
+    """
+    Lightweight periodic cleanup that runs during session.
+    Only cleans up very old files to prevent accumulation.
+    """
+    try:
+        # Only run cleanup occasionally (every 50th call)
+        if not hasattr(st.session_state, 'cleanup_counter'):
+            st.session_state.cleanup_counter = 0
+
+        st.session_state.cleanup_counter += 1
+
+        # Run cleanup every 50 page loads
+        if st.session_state.cleanup_counter % 50 == 0:
+            # Quick cleanup of very old files (older than 2 hours)
+            cutoff_time = datetime.now().timestamp() - 7200  # 2 hours
+
+            temp_dirs = ["temp_files", "downloads"]
+            for temp_dir in temp_dirs:
+                if os.path.exists(temp_dir):
+                    try:
+                        for item in os.listdir(temp_dir):
+                            item_path = os.path.join(temp_dir, item)
+                            if os.path.isfile(item_path) and os.path.getctime(item_path) < cutoff_time:
+                                os.remove(item_path)
+                    except Exception:
+                        pass
+
+    except Exception:
+        # Silently handle any errors
+        pass
 
 
 # ============================================================================

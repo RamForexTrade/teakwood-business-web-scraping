@@ -66,10 +66,20 @@ def main():
     setup_page_config()
     initialize_state()
 
+    # Periodic cleanup to prevent temp file accumulation
+    from state_management import periodic_cleanup
+    periodic_cleanup()
+
     # CLOUD DEPLOYMENT DEBUG: Show deployment info in debug mode
     if is_cloud and st.session_state.get('show_debug', False):
         st.sidebar.success("🌐 Cloud Mode Active")
         st.sidebar.caption(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'Unknown')}")
+
+        # Manual garbage collection button for debugging
+        if st.sidebar.button("🗑️ Manual Cleanup", help="Clean up temp files manually"):
+            from state_management import comprehensive_garbage_collection
+            cleanup_stats = comprehensive_garbage_collection()
+            st.sidebar.success(f"Cleanup completed: {cleanup_stats}")
 
     # Get current state
     state = get_state()
