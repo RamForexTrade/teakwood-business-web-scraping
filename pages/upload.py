@@ -139,8 +139,8 @@ def render():
                             st.warning("⚠️ No obvious company name columns detected. You can still proceed.")
                     
                     # Proceed button (spec-compliant naming)
-                    if st.button("🔍 Proceed to Web Research", 
-                                use_container_width=True,
+                    if st.button("🔍 Proceed to Web Research",
+                                width="stretch",
                                 type="primary",
                                 help="Start web research for contact discovery"):
                         proceed_to_web_research()
@@ -149,8 +149,8 @@ def render():
                     st.error(f"❌ Cannot proceed: {error_message}")
                     
                     # Disabled button to show expected action
-                    st.button("🔍 Proceed to Web Research", 
-                             use_container_width=True,
+                    st.button("🔍 Proceed to Web Research",
+                             width="stretch",
                              disabled=True,
                              help=f"Cannot proceed: {error_message}")
             

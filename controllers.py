@@ -123,7 +123,7 @@ def handle_file_upload(uploaded_file: Any) -> bool:
                                     preview_df = pd.read_excel(file_io, sheet_name=selected_sheet_choice, nrows=3)
                                     
                                     st.write(f"**Preview of '{selected_sheet_choice}' sheet:**")
-                                    st.dataframe(preview_df, use_container_width=True)
+                                    st.dataframe(preview_df, width="stretch")
                                     st.caption(f"Sheet has {len(preview_df.columns)} columns. Preview shows first 3 rows.")
                                     
                                 except Exception as e:
@@ -131,9 +131,9 @@ def handle_file_upload(uploaded_file: Any) -> bool:
                         
                         # Process button
                         if st.button(
-                            f"🚀 Process Selected Sheet: '{selected_sheet_choice}'", 
+                            f"🚀 Process Selected Sheet: '{selected_sheet_choice}'",
                             type="primary",
-                            use_container_width=True,
+                            width="stretch",
                             key=f"process_sheet_{filename}"
                         ):
                             # Store the selected sheet and rerun
@@ -216,7 +216,7 @@ def handle_file_upload(uploaded_file: Any) -> bool:
             
             # Show sample of processed data
             with st.expander("👀 Preview Processed Data"):
-                st.dataframe(cleaned_df.head(10), use_container_width=True)
+                st.dataframe(cleaned_df.head(10), width="stretch")
         else:
             # Basic success message
             st.success(f"✅ File loaded successfully! Dataset: {len(cleaned_df)} rows × {len(cleaned_df.columns)} columns")
@@ -320,7 +320,7 @@ def create_download_button(df: pd.DataFrame, filename_prefix: str,
             file_name=filename,
             mime="text/csv",
             help=help_text,
-            use_container_width=True
+            width="stretch"
         )
         
         return download_clicked

@@ -678,18 +678,18 @@ def render_recipients_FIXED(df, emailer):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("✅ Select All Available", use_container_width=True):
+        if st.button("✅ Select All Available", width="stretch"):
             mask = st.session_state.recipients_dataframe['email_status'] != 'Sent'
             st.session_state.recipients_dataframe.loc[mask, 'selected_for_email'] = True
             st.rerun()
-    
+
     with col2:
-        if st.button("❌ Deselect All", use_container_width=True):
+        if st.button("❌ Deselect All", width="stretch"):
             st.session_state.recipients_dataframe['selected_for_email'] = False
             st.rerun()
-    
+
     with col3:
-        if st.button("📥 Download Complete Data", use_container_width=True, help="Download complete recipients data with email status"):
+        if st.button("📥 Download Complete Data", width="stretch", help="Download complete recipients data with email status"):
             # Use the latest recipients dataframe from session state to ensure saved changes are included
             latest_recipients_df = st.session_state.recipients_dataframe
             st.info("🔄 **Using latest saved recipients data** for download (includes all edits)")
@@ -738,7 +738,7 @@ def render_recipients_FIXED(df, emailer):
     if edit_mode:
         edited_df = st.data_editor(
             table_df,
-            use_container_width=True,
+            width="stretch",
             num_rows="fixed",
             column_config={
                 '✅ Select': st.column_config.CheckboxColumn(
@@ -770,7 +770,7 @@ def render_recipients_FIXED(df, emailer):
         # STREAMLINED SAVE - Single button with clear feedback
         col1, col2, col3 = st.columns([2, 1, 1])
         with col2:
-            if st.button("💾 Save Changes", type="primary", use_container_width=True):
+            if st.button("💾 Save Changes", type="primary", width="stretch"):
                 with st.spinner("Saving changes..."):
                     save_recipients_changes_streamlined(edited_df)
                     # Force update the current_df to reflect changes immediately
@@ -778,7 +778,7 @@ def render_recipients_FIXED(df, emailer):
                 st.success("✅ Changes saved successfully!")
                 st.rerun()  # Refresh to show updated data
         with col3:
-            if st.button("🔄 Reset", use_container_width=True, help="Reset to original data"):
+            if st.button("🔄 Reset", width="stretch", help="Reset to original data"):
                 st.rerun()
     else:
         # Read-only view when edit mode is disabled - use current_df to show saved changes
@@ -804,7 +804,7 @@ def render_recipients_FIXED(df, emailer):
 
         st.dataframe(
             readonly_table_df,
-            use_container_width=True,
+            width="stretch",
             column_config={
                 '✅ Select': st.column_config.CheckboxColumn('✅ Select'),
                 'Business Name': st.column_config.TextColumn('Business Name'),
@@ -1022,11 +1022,17 @@ def render_email_configuration_simple(emailer):
             config = provider_configs[provider]
             st.info(f"SMTP: {config['smtp_server']}:{config['port']}")
         
+        # Cloud deployment info
+        import os
+        is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
+        if is_cloud:
+            st.info("🌐 **Cloud Deployment Detected**: Email configuration test may be limited due to network restrictions. Emails will be attempted during campaign.")
+
         with st.form("email_config"):
             email = st.text_input("📧 Email Address", placeholder="your.email@gmail.com")
             password = st.text_input("🔐 App Password", type="password", help="Use App Password for Gmail")
             sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
-            
+
             if st.form_submit_button("🔧 Configure Email", type="primary"):
                 if email and password:
                     emailer.configure_smtp(
@@ -1187,7 +1193,7 @@ def download_complete_recipients_data_FIXED(current_df):
                 data=csv_data,
                 file_name=filename,
                 mime="text/csv",
-                use_container_width=True
+                width="stretch"
             )
             
             # Show download info with sync confirmation
@@ -1254,7 +1260,7 @@ def download_complete_recipients_data_FIXED(current_df):
                     data=csv_data,
                     file_name=filename,
                     mime="text/csv",
-                    use_container_width=True
+                    width="stretch"
                 )
                 
                 st.info("⚠️ Fallback download contains Recipients Table data only (may not include all business columns)")
@@ -1583,7 +1589,7 @@ def render_campaign_enhanced_FIXED(emailer, template_ready):
         disabled=not can_send,
         help="All requirements must be met to enable this button" if not can_send else "Click to start sending emails",
         key="send_campaign_button",
-        use_container_width=True
+        width="stretch"
     )
     
     # ENHANCED: Execute REAL EMAIL CAMPAIGN when button is clicked

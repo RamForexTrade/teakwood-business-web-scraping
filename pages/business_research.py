@@ -204,7 +204,7 @@ def _enhanced_business_research_page_impl():
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("← Go to Upload", use_container_width=True):
+            if st.button("← Go to Upload", width="stretch"):
                 try:
                     from controllers import go_to_stage
                     go_to_stage('upload')
@@ -212,10 +212,10 @@ def _enhanced_business_research_page_impl():
                     if 'current_stage' in st.session_state:
                         st.session_state.current_stage = 'upload'
                     st.rerun()
-        
+
         with col2:
             # Create sample data for testing
-            if st.button("🧪 Use Sample Data", use_container_width=True):
+            if st.button("🧪 Use Sample Data", width="stretch"):
                 sample_data = pd.DataFrame({
                     'Consignee Name': [
                         'Acme Timber Corporation',
@@ -309,7 +309,7 @@ def _enhanced_business_research_page_impl():
     
     # Show data preview
     with st.expander("📋 Data Preview", expanded=False):
-        st.dataframe(data.head(10), use_container_width=True)
+        st.dataframe(data.head(10), width="stretch")
     
     if not company_column:
         st.error("❌ Could not identify company name column. Please ensure your data has a column like 'Company Name' or 'Consignee Name'.")
@@ -451,7 +451,7 @@ def _enhanced_business_research_page_impl():
                 st.markdown("#### 🚀 Quick Action")
                 if st.button("📧 Go to Email Outreach →",
                            type="primary",
-                           use_container_width=True,
+                           width="stretch",
                            help=f"Jump directly to email outreach for {companies_ready_for_email} ready companies"):
 
                     # Ensure enhanced data is available for email outreach
@@ -487,7 +487,7 @@ def _enhanced_business_research_page_impl():
                 st.markdown("#### 🚀 Quick Action")
                 if st.button("📧 Go to Email Outreach →",
                            type="secondary",
-                           use_container_width=True,
+                           width="stretch",
                            help=f"Jump to email outreach to complete research for {found_companies_count} found companies"):
 
                     # Ensure enhanced data is available for email outreach
@@ -587,7 +587,7 @@ def _enhanced_business_research_page_impl():
             col1, col2, col3 = st.columns([2, 1, 1])
             
             with col1:
-                if st.button("🔍 Start AI Research", type="primary", use_container_width=True):
+                if st.button("🔍 Start AI Research", type="primary", width="stretch"):
                     enhanced_batch_research(
                         pending_companies[:batch_size], 
                         search_delay, 
@@ -599,14 +599,14 @@ def _enhanced_business_research_page_impl():
                     )
             
             with col2:
-                if st.button("🔄 Reset Results", use_container_width=True):
+                if st.button("🔄 Reset Results", width="stretch"):
                     st.session_state.research_results = {}
                     st.session_state.research_status = 'ready'
                     st.success("🔄 Results reset!")
                     st.rerun()
             
             with col3:
-                if st.button("⏸️ Stop Research", disabled=True, use_container_width=True):
+                if st.button("⏸️ Stop Research", disabled=True, width="stretch"):
                     st.info("Stop functionality coming soon")
         
         elif not st.session_state.api_tested:
@@ -661,7 +661,7 @@ def _enhanced_business_research_page_impl():
             try:
                 from services.web_scraper import ResearchResultsManager
                 results_df = ResearchResultsManager.format_results_for_display(st.session_state.research_results)
-                st.dataframe(results_df, use_container_width=True)
+                st.dataframe(results_df, width="stretch")
             except Exception as e:
                 # Fallback display
                 results_data = []
@@ -688,7 +688,7 @@ def _enhanced_business_research_page_impl():
                     })
                 
                 results_df = pd.DataFrame(results_data)
-                st.dataframe(results_df, use_container_width=True)
+                st.dataframe(results_df, width="stretch")
         
         # Export options
         st.subheader("📤 Export Options")
@@ -705,7 +705,7 @@ def _enhanced_business_research_page_impl():
                     data=results_csv,
                     file_name=f"timber_research_results_{timestamp}.csv",
                     mime="text/csv",
-                    use_container_width=True
+                    width="stretch"
                 )
         
         with col2:
@@ -780,7 +780,7 @@ def _enhanced_business_research_page_impl():
                     data=enhanced_csv,
                     file_name=f"enhanced_timber_data_{timestamp}.csv",
                     mime="text/csv",
-                    use_container_width=True,
+                    width="stretch",
                     key="download_enhanced_data"
                 )
                 

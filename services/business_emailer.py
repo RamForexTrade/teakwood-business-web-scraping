@@ -61,18 +61,40 @@ class BusinessEmailer:
         self.is_configured = True
     
     def test_email_config(self) -> Tuple[bool, str]:
-        """Test email configuration"""
+        """Test email configuration with cloud deployment support"""
         if not self.is_configured:
             return False, "Email not configured"
-        
+
         try:
+            # Check if running in cloud environment
+            import os
+            is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
+
+            if is_cloud:
+                # In cloud deployment, skip actual SMTP test due to network restrictions
+                # Just validate credentials format
+                if '@' in self.email and len(self.password) > 0:
+                    return True, "Email configuration saved (Cloud mode - SMTP test skipped due to network restrictions)"
+                else:
+                    return False, "Invalid email format or empty password"
+
+            # Local environment - perform full SMTP test
             context = ssl.create_default_context()
             with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
                 server.starttls(context=context)
                 server.login(self.email, self.password)
                 return True, "Email configuration successful"
+
         except Exception as e:
-            return False, f"Configuration test failed: {str(e)}"
+            error_msg = str(e)
+            if "Network is unreachable" in error_msg or "Errno 101" in error_msg:
+                # Network issue in cloud deployment
+                if '@' in self.email and len(self.password) > 0:
+                    return True, "Email configuration saved (Network test failed but credentials stored - emails will be attempted during campaign)"
+                else:
+                    return False, "Invalid email format or empty password"
+            else:
+                return False, f"Configuration test failed: {error_msg}"
     
     def load_default_templates(self) -> Dict[str, EmailTemplate]:
         """Load default email templates with TeakWood Business branding"""
@@ -289,16 +311,26 @@ class BusinessEmailer:
             return True, "Email sent successfully"
             
         except Exception as e:
+            error_msg = str(e)
+
             # Update tracking
             self.email_log['total_failed'] += 1
             self.email_log['failed_emails'].append({
                 'to': to_email,
                 'subject': subject,
-                'error': str(e),
+                'error': error_msg,
                 'timestamp': datetime.now().isoformat()
             })
-            
-            return False, f"Failed to send email: {str(e)}"
+
+            # Provide more helpful error messages for common cloud deployment issues
+            if "Network is unreachable" in error_msg or "Errno 101" in error_msg:
+                return False, f"Network error: Unable to reach email server. This may be due to cloud deployment network restrictions."
+            elif "Authentication failed" in error_msg or "535" in error_msg:
+                return False, f"Authentication failed: Please check your email and app password."
+            elif "timeout" in error_msg.lower():
+                return False, f"Connection timeout: Email server is not responding."
+            else:
+                return False, f"Failed to send email: {error_msg}"
     
     def send_personalized_email(self, recipient_email: str, business_data: Dict[str, Any], 
                               template_name: str, variables: Dict[str, str]) -> Tuple[bool, str]:
