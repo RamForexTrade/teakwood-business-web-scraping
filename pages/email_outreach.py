@@ -1035,20 +1035,42 @@ def render_email_configuration_simple(emailer):
                 st.info(f"SMTP: {config['smtp_server']}:{config['port']}")
 
         elif email_method == 'cloud_free':
-            st.info("🌐 **Free Cloud Email Service**")
-            st.markdown("""
-            **Benefits:**
-            - ✅ Works in all cloud deployments (Railway, Heroku, etc.)
-            - ✅ No SMTP port blocking issues
-            - ✅ Free tier available
-            - ✅ Better deliverability
+            st.info("🌐 **Free Cloud Email Service (Web3Forms)**")
 
-            **How it works:**
-            - Uses HTTP API instead of SMTP
-            - Bypasses cloud platform restrictions
-            - Reliable email delivery
-            """)
-            config = {'smtp_server': 'cloud_api', 'port': 443}  # Placeholder for cloud service
+            # Check if API key is set
+            import os
+            api_key = os.environ.get('WEB3FORMS_ACCESS_KEY')
+
+            if not api_key:
+                st.warning("⚠️ **API Key Required** - Get your free Web3Forms access key:")
+
+                with st.expander("📖 How to Get Free API Key (2 minutes setup)"):
+                    st.markdown("""
+                    **Step 1:** Go to [Web3Forms.com](https://web3forms.com)
+
+                    **Step 2:** Click "Get Started Free"
+
+                    **Step 3:** Enter your email address
+
+                    **Step 4:** Copy your Access Key
+
+                    **Step 5:** Add to Railway Environment Variables:
+                    - Variable Name: `WEB3FORMS_ACCESS_KEY`
+                    - Variable Value: Your access key from Web3Forms
+
+                    **Benefits:**
+                    - ✅ **Completely Free** - No credit card required
+                    - ✅ **1000 emails/month** free tier
+                    - ✅ **Works in all cloud deployments**
+                    - ✅ **No SMTP port issues**
+                    - ✅ **Better deliverability**
+                    """)
+
+                st.error("🔑 **Setup Required**: Add WEB3FORMS_ACCESS_KEY to your Railway environment variables")
+            else:
+                st.success(f"✅ **Web3Forms API Key Configured** (Key: {api_key[:8]}...)")
+
+            config = {'smtp_server': 'cloud_api', 'port': 443}
         
         # Cloud deployment info
         import os
@@ -1086,7 +1108,12 @@ def render_email_configuration_simple(emailer):
                 email = st.text_input("📧 From Email Address", placeholder="your.email@company.com", help="This will appear as the sender")
                 password = "cloud_service_token"  # Placeholder for cloud service
                 sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
-                st.info("💡 **No password needed** - Cloud email service handles authentication automatically")
+
+                import os
+                if os.environ.get('WEB3FORMS_ACCESS_KEY'):
+                    st.success("💡 **Web3Forms API configured** - Premium free service (1000 emails/month)")
+                else:
+                    st.info("💡 **No API key needed** - Using FormSubmit.co free service (works immediately)")
 
             if st.form_submit_button("🔧 Configure Email", type="primary"):
                 if email and password:

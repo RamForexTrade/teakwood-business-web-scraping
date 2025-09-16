@@ -487,37 +487,95 @@ class BusinessEmailer:
     
     def _send_email_fallback(self, to_email: str, subject: str, body: str) -> bool:
         """
-        Fallback email method using HTTP-based email services for cloud deployments.
-        Uses free email services that work in cloud environments.
+        Real email sending using Web3Forms - a free email service for cloud deployments.
         """
         try:
-            # For demo purposes in cloud deployment, simulate successful email sending
-            # In production, you would integrate with actual free email services
+            import requests
+            import os
 
             # Validate email format
             if not self._is_valid_email(to_email):
                 return False
 
-            # Simulate email sending with delay
-            import time
-            time.sleep(1)  # Simulate API call
+            # Get Web3Forms access key from environment or use default
+            access_key = os.environ.get('WEB3FORMS_ACCESS_KEY')
 
-            # Log the email attempt
-            import logging
-            logging.info(f"Cloud email service: Simulated sending to {to_email} - {subject}")
+            if not access_key:
+                # Try alternative free email service that doesn't require API key
+                return self._send_via_formsubmit(to_email, subject, body)
 
-            # For demo purposes, always return success for valid emails
-            # In production, replace this with actual API calls to:
-            # - Resend.com (3,000 emails/month free)
-            # - EmailJS (200 emails/month free)
-            # - Formspree (50 emails/month free)
-            # - Netlify Forms (100 submissions/month free)
+            # Web3Forms API endpoint
+            url = "https://api.web3forms.com/submit"
 
-            return True
+            # Prepare email data
+            data = {
+                "access_key": access_key,
+                "subject": subject,
+                "email": to_email,
+                "message": body,
+                "from_name": self.sender_name,
+                "from_email": self.email,
+                "to": to_email
+            }
+
+            # Send email via Web3Forms API
+            response = requests.post(url, data=data, timeout=30)
+
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success"):
+                    import logging
+                    logging.info(f"Web3Forms: Successfully sent to {to_email}")
+                    return True
+                else:
+                    import logging
+                    logging.error(f"Web3Forms error: {result.get('message', 'Unknown error')}")
+                    return False
+            else:
+                import logging
+                logging.error(f"Web3Forms HTTP error: {response.status_code}")
+                return False
 
         except Exception as e:
             import logging
-            logging.error(f"Cloud email service error: {e}")
+            logging.error(f"Web3Forms service error: {e}")
+            return False
+
+    def _send_via_formsubmit(self, to_email: str, subject: str, body: str) -> bool:
+        """
+        Send email via FormSubmit.co - free service that works without API keys
+        """
+        try:
+            import requests
+
+            # FormSubmit.co endpoint - uses the recipient email as endpoint
+            url = f"https://formsubmit.co/{to_email}"
+
+            # Prepare form data
+            data = {
+                "name": self.sender_name,
+                "email": self.email,
+                "subject": subject,
+                "message": body,
+                "_captcha": "false",  # Disable captcha for API usage
+                "_template": "basic"  # Use basic template
+            }
+
+            # Send email via FormSubmit
+            response = requests.post(url, data=data, timeout=30)
+
+            if response.status_code == 200:
+                import logging
+                logging.info(f"FormSubmit: Successfully sent to {to_email}")
+                return True
+            else:
+                import logging
+                logging.error(f"FormSubmit HTTP error: {response.status_code}")
+                return False
+
+        except Exception as e:
+            import logging
+            logging.error(f"FormSubmit service error: {e}")
             return False
 
     def _is_valid_email(self, email: str) -> bool:
