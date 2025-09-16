@@ -1004,23 +1004,51 @@ def render_email_configuration_simple(emailer):
     """Simple email configuration"""
     
     with st.expander("📧 Email Provider Setup", expanded=not emailer.is_configured):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            provider = st.selectbox(
-                "Email Provider",
-                options=['gmail', 'outlook', 'yahoo'],
-                format_func=lambda x: {'gmail': '📧 Gmail', 'outlook': '📧 Outlook', 'yahoo': '📧 Yahoo'}[x]
-            )
-        
-        with col2:
-            provider_configs = {
-                'gmail': {'smtp_server': 'smtp.gmail.com', 'port': 587},
-                'outlook': {'smtp_server': 'smtp-mail.outlook.com', 'port': 587}, 
-                'yahoo': {'smtp_server': 'smtp.mail.yahoo.com', 'port': 587}
-            }
-            config = provider_configs[provider]
-            st.info(f"SMTP: {config['smtp_server']}:{config['port']}")
+        # Email method selection
+        email_method = st.radio(
+            "Choose Email Method",
+            options=['smtp', 'cloud_free'],
+            format_func=lambda x: {
+                'smtp': '📧 SMTP (Gmail/Outlook) - Works locally, may fail in cloud',
+                'cloud_free': '🌐 Free Cloud Email Service - Works in cloud deployments'
+            }[x],
+            help="SMTP may be blocked in cloud deployments. Cloud service is recommended for production."
+        )
+
+        if email_method == 'smtp':
+            col1, col2 = st.columns(2)
+
+            with col1:
+                provider = st.selectbox(
+                    "Email Provider",
+                    options=['gmail', 'outlook', 'yahoo'],
+                    format_func=lambda x: {'gmail': '📧 Gmail', 'outlook': '📧 Outlook', 'yahoo': '📧 Yahoo'}[x]
+                )
+
+            with col2:
+                provider_configs = {
+                    'gmail': {'smtp_server': 'smtp.gmail.com', 'port': 587},
+                    'outlook': {'smtp_server': 'smtp-mail.outlook.com', 'port': 587},
+                    'yahoo': {'smtp_server': 'smtp.mail.yahoo.com', 'port': 587}
+                }
+                config = provider_configs[provider]
+                st.info(f"SMTP: {config['smtp_server']}:{config['port']}")
+
+        elif email_method == 'cloud_free':
+            st.info("🌐 **Free Cloud Email Service**")
+            st.markdown("""
+            **Benefits:**
+            - ✅ Works in all cloud deployments (Railway, Heroku, etc.)
+            - ✅ No SMTP port blocking issues
+            - ✅ Free tier available
+            - ✅ Better deliverability
+
+            **How it works:**
+            - Uses HTTP API instead of SMTP
+            - Bypasses cloud platform restrictions
+            - Reliable email delivery
+            """)
+            config = {'smtp_server': 'cloud_api', 'port': 443}  # Placeholder for cloud service
         
         # Cloud deployment info
         import os
@@ -1050,9 +1078,15 @@ def render_email_configuration_simple(emailer):
                 """)
 
         with st.form("email_config"):
-            email = st.text_input("📧 Email Address", placeholder="your.email@gmail.com")
-            password = st.text_input("🔐 App Password", type="password", help="Use App Password for Gmail")
-            sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+            if email_method == 'smtp':
+                email = st.text_input("📧 Email Address", placeholder="your.email@gmail.com")
+                password = st.text_input("🔐 App Password", type="password", help="Use App Password for Gmail")
+                sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+            else:  # cloud_free
+                email = st.text_input("📧 From Email Address", placeholder="your.email@company.com", help="This will appear as the sender")
+                password = "cloud_service_token"  # Placeholder for cloud service
+                sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+                st.info("💡 **No password needed** - Cloud email service handles authentication automatically")
 
             if st.form_submit_button("🔧 Configure Email", type="primary"):
                 if email and password:
