@@ -464,6 +464,10 @@ def _enhanced_business_research_page_impl():
                         except Exception as e:
                             st.warning(f"Could not prepare enhanced data: {e}")
 
+                    # CRITICAL FIX: Clear old recipients table to force rebuild with new data
+                    if 'recipients_dataframe' in st.session_state:
+                        del st.session_state.recipients_dataframe
+
                     # Navigate to email outreach
                     try:
                         from controllers import go_to_stage
@@ -495,6 +499,10 @@ def _enhanced_business_research_page_impl():
                             st.session_state.working_data = enhanced_data
                         except Exception as e:
                             st.warning(f"Could not prepare enhanced data: {e}")
+
+                    # CRITICAL FIX: Clear old recipients table to force rebuild with new data
+                    if 'recipients_dataframe' in st.session_state:
+                        del st.session_state.recipients_dataframe
 
                     # Navigate to email outreach
                     try:
@@ -804,6 +812,10 @@ def _enhanced_business_research_page_impl():
     with col3:
         if st.session_state.research_results:
             if st.button("Email Outreach →", type="primary", use_container_width=True):
+                # CRITICAL FIX: Clear old recipients table to force rebuild with new data
+                if 'recipients_dataframe' in st.session_state:
+                    del st.session_state.recipients_dataframe
+
                 try:
                     from controllers import go_to_stage
                     go_to_stage('analyze')
