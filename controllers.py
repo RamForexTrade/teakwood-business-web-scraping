@@ -498,8 +498,10 @@ def proceed_to_web_research() -> None:
             st.session_state.research_metadata = research_metadata
             
             # Navigate to map stage (web research)
+            # CLOUD DEPLOYMENT FIX: Update both state management and session state
             update_state(current_stage="map")
-            
+            st.session_state.current_stage = "map"  # Ensure session state is also updated
+
             st.success("✅ Upload stage completed! Proceeding to Web Research...")
             st.rerun()
         else:
