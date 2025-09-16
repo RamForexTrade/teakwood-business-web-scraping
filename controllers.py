@@ -21,7 +21,9 @@ def go_to_stage(stage_name: str) -> None:
         st.error(f"Invalid stage: {stage_name}. Valid stages: {valid_stages}")
         return
 
+    # CLOUD DEPLOYMENT FIX: Update both state management and session state
     update_state(current_stage=stage_name)
+    st.session_state.current_stage = stage_name  # Ensure session state is also updated
     st.rerun()
 
 

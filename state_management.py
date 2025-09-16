@@ -73,11 +73,19 @@ def initialize_state() -> None:
     """Initialize session state with default AppState if not exists."""
     if "app_state" not in st.session_state:
         st.session_state.app_state = AppState()
-        # Create session directories
-        create_session_directories(st.session_state.app_state.session_id)
-    
+        # Create session directories (skip in cloud to avoid permission issues)
+        try:
+            create_session_directories(st.session_state.app_state.session_id)
+        except Exception:
+            # Skip directory creation in cloud deployment
+            pass
+
     # Initialize session-based state management
     initialize_session_state()
+
+    # CLOUD DEPLOYMENT FIX: Ensure navigation state is properly initialized
+    if 'current_stage' not in st.session_state:
+        st.session_state.current_stage = st.session_state.app_state.current_stage
 
 
 def initialize_session_state() -> None:

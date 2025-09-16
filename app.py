@@ -48,14 +48,14 @@ if st.query_params.get("health") == "check":
 is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
 
 # Import appropriate modules based on deployment
+# DEPLOYMENT FIX: Use regular state management for better navigation compatibility
+from state_management import initialize_state, get_state
+
 if is_cloud:
-    from cloud_state_management import initialize_state, get_state
     from railway_config import get_railway_config
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
-    logger.info("Running in cloud mode - using optimized session management")
-else:
-    from state_management import initialize_state, get_state
+    logger.info("Running in cloud mode - using standard session management for navigation compatibility")
 
 from utils.layout import setup_page_config, render_navigation_sidebar, render_progress_indicator
 
@@ -66,27 +66,41 @@ def main():
     setup_page_config()
     initialize_state()
 
+    # CLOUD DEPLOYMENT DEBUG: Show deployment info in debug mode
+    if is_cloud and st.session_state.get('show_debug', False):
+        st.sidebar.success("🌐 Cloud Mode Active")
+        st.sidebar.caption(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'Unknown')}")
+
     # Get current state
     state = get_state()
+
+    # CLOUD DEPLOYMENT FIX: Ensure current_stage is properly synchronized
+    current_stage = getattr(state, 'current_stage', 'upload')
+    if 'current_stage' in st.session_state:
+        current_stage = st.session_state.current_stage
+    elif hasattr(state, 'current_stage'):
+        current_stage = state.current_stage
+    else:
+        current_stage = 'upload'
 
     # Render layout
     render_navigation_sidebar()
     render_progress_indicator()
-    
-    # Route to appropriate page based on state
-    if state.current_stage == "upload":
+
+    # Route to appropriate page based on current stage
+    if current_stage == "upload":
         from pages.upload import render
         render()
     
-    elif state.current_stage == "ai_chat":
+    elif current_stage == "ai_chat":
         from pages.ai_chat import render
         render()
-    
-    elif state.current_stage == "visualizations":
+
+    elif current_stage == "visualizations":
         from pages.quick_visualizations import render
         render()
-    
-    elif state.current_stage == "map":
+
+    elif current_stage == "map":
         # Use the business research page
         try:
             from pages.business_research import enhanced_business_research_page
@@ -94,18 +108,18 @@ def main():
         except Exception as e:
             st.error(f"Error loading business research page: {str(e)}")
             st.error("Please try refreshing the page or contact support if the issue persists.")
-            
+
             # Reset to upload stage as fallback
             if st.button("🔄 Return to Upload"):
                 from controllers import go_to_stage
                 go_to_stage("upload")
-    
-    elif state.current_stage == "analyze":
+
+    elif current_stage == "analyze":
         from pages.email_outreach import render
         render()
-    
+
     else:
-        st.error(f"Unknown stage: {state.current_stage}")
+        st.error(f"Unknown stage: {current_stage}")
         if st.button("Go to Upload"):
             from controllers import go_to_stage
             go_to_stage("upload")
