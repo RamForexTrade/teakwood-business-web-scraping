@@ -276,9 +276,16 @@ class BusinessEmailer:
     
     def send_email(self, to_email: str, subject: str, html_body: str, attachments: List[str] = None) -> Tuple[bool, str]:
         """Send a single email"""
+        import logging
+        logging.info(f"Attempting to send email to: {to_email}")
+        logging.info(f"Subject: {subject}")
+        logging.info(f"Email configured: {self.is_configured}")
+        logging.info(f"Use cloud service: {self.use_cloud_service}")
+
         if not self.is_configured:
+            logging.error("Email not configured")
             return False, "Email not configured"
-        
+
         try:
             # Create message
             msg = MIMEMultipart('alternative')
@@ -310,11 +317,14 @@ class BusinessEmailer:
             # Send email with cloud deployment compatibility
             import os
             is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
+            logging.info(f"Cloud environment detected: {is_cloud}")
+            logging.info(f"SMTP server: {self.smtp_server}")
 
             # Use cloud service if configured or if in cloud environment
             if self.use_cloud_service or (is_cloud and self.smtp_server == 'cloud_api'):
                 # Use cloud email service directly
-                success = self._send_email_fallback(to_email, subject, body)
+                logging.info("Using cloud email service (Web3Forms/FormSubmit)")
+                success = self._send_email_fallback(to_email, subject, html_body)
                 if not success:
                     raise Exception("Cloud email service failed")
             elif is_cloud:
@@ -393,7 +403,7 @@ class BusinessEmailer:
             if is_cloud and ("Network is unreachable" in error_msg or "Errno 101" in error_msg or "Connection refused" in error_msg):
                 # Try fallback email method for cloud deployment
                 try:
-                    success = self._send_email_fallback(to_email, subject, body)
+                    success = self._send_email_fallback(to_email, subject, html_body)
                     if success:
                         # Update tracking for successful fallback
                         self.email_log['total_sent'] += 1
@@ -492,54 +502,72 @@ class BusinessEmailer:
         try:
             import requests
             import os
+            import logging
 
             # Validate email format
             if not self._is_valid_email(to_email):
+                logging.error(f"Invalid email format: {to_email}")
                 return False
 
             # Get Web3Forms access key from environment or use default
             access_key = os.environ.get('WEB3FORMS_ACCESS_KEY')
+            logging.info(f"Web3Forms access key found: {bool(access_key)}")
 
             if not access_key:
                 # Try alternative free email service that doesn't require API key
+                logging.info("No Web3Forms key, trying FormSubmit fallback")
                 return self._send_via_formsubmit(to_email, subject, body)
 
             # Web3Forms API endpoint
             url = "https://api.web3forms.com/submit"
 
-            # Prepare email data
+            # Prepare email data for Web3Forms (correct API format)
             data = {
                 "access_key": access_key,
                 "subject": subject,
-                "email": to_email,
+                "name": self.sender_name,
+                "email": self.email,  # Sender email
                 "message": body,
-                "from_name": self.sender_name,
-                "from_email": self.email,
-                "to": to_email
+                "to": to_email,  # Recipient email
+                "_template": "table"
             }
+
+            logging.info(f"Sending email via Web3Forms to: {to_email}")
+            logging.info(f"From: {self.sender_name} <{self.email}>")
 
             # Send email via Web3Forms API
             response = requests.post(url, data=data, timeout=30)
 
+            logging.info(f"Web3Forms response status: {response.status_code}")
+            logging.info(f"Web3Forms response text: {response.text[:200]}...")
+
             if response.status_code == 200:
-                result = response.json()
-                if result.get("success"):
-                    import logging
-                    logging.info(f"Web3Forms: Successfully sent to {to_email}")
-                    return True
-                else:
-                    import logging
-                    logging.error(f"Web3Forms error: {result.get('message', 'Unknown error')}")
-                    return False
+                try:
+                    result = response.json()
+                    if result.get("success"):
+                        logging.info(f"Web3Forms: Successfully sent to {to_email}")
+                        return True
+                    else:
+                        error_msg = result.get('message', 'Unknown error')
+                        logging.error(f"Web3Forms API error: {error_msg}")
+                        # Try FormSubmit as fallback
+                        logging.info("Trying FormSubmit fallback...")
+                        return self._send_via_formsubmit(to_email, subject, body)
+                except Exception as json_error:
+                    logging.error(f"Web3Forms JSON parse error: {json_error}")
+                    # Try FormSubmit as fallback
+                    return self._send_via_formsubmit(to_email, subject, body)
             else:
-                import logging
-                logging.error(f"Web3Forms HTTP error: {response.status_code}")
-                return False
+                logging.error(f"Web3Forms HTTP error: {response.status_code} - {response.text}")
+                # Try FormSubmit as fallback
+                return self._send_via_formsubmit(to_email, subject, body)
 
         except Exception as e:
             import logging
             logging.error(f"Web3Forms service error: {e}")
-            return False
+            # Try FormSubmit as final fallback
+            logging.info("Trying FormSubmit as final fallback...")
+            return self._send_via_formsubmit(to_email, subject, body)
 
     def _send_via_formsubmit(self, to_email: str, subject: str, body: str) -> bool:
         """
@@ -547,30 +575,37 @@ class BusinessEmailer:
         """
         try:
             import requests
+            import logging
+
+            logging.info(f"Trying FormSubmit for: {to_email}")
 
             # FormSubmit.co endpoint - uses the recipient email as endpoint
             url = f"https://formsubmit.co/{to_email}"
 
-            # Prepare form data
+            # Prepare form data for FormSubmit
             data = {
                 "name": self.sender_name,
                 "email": self.email,
                 "subject": subject,
                 "message": body,
                 "_captcha": "false",  # Disable captcha for API usage
-                "_template": "basic"  # Use basic template
+                "_template": "basic",  # Use basic template
+                "_next": "https://formsubmit.co/thankyou"  # Redirect after submission
             }
 
-            # Send email via FormSubmit
-            response = requests.post(url, data=data, timeout=30)
+            logging.info(f"FormSubmit URL: {url}")
 
-            if response.status_code == 200:
-                import logging
+            # Send email via FormSubmit
+            response = requests.post(url, data=data, timeout=30, allow_redirects=False)
+
+            logging.info(f"FormSubmit response status: {response.status_code}")
+
+            # FormSubmit returns 302 redirect on success
+            if response.status_code in [200, 302]:
                 logging.info(f"FormSubmit: Successfully sent to {to_email}")
                 return True
             else:
-                import logging
-                logging.error(f"FormSubmit HTTP error: {response.status_code}")
+                logging.error(f"FormSubmit HTTP error: {response.status_code} - {response.text[:200]}")
                 return False
 
         except Exception as e:
@@ -653,6 +688,25 @@ class BusinessEmailer:
 
         except Exception:
             return False
+
+    def send_test_email(self, test_email: str) -> Tuple[bool, str]:
+        """Send a test email to verify the service is working"""
+        subject = "Test Email from TeakWood Business"
+        body = f"""
+        Hello,
+
+        This is a test email from TeakWood Business Web Scraping application.
+
+        If you received this email, the email service is working correctly!
+
+        Sent from: {self.sender_name}
+        Service: Cloud Email Service
+
+        Best regards,
+        TeakWood Business Team
+        """
+
+        return self.send_email(test_email, subject, body)
 
     def export_email_log(self) -> str:
         """Export email log as JSON string"""

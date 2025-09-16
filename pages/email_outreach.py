@@ -1136,6 +1136,20 @@ def render_email_configuration_simple(emailer):
     if emailer.is_configured:
         st.success(f"✅ Email configured: {emailer.sender_name} <{emailer.email}>")
 
+        # Add test email functionality
+        with st.expander("🧪 Test Email Service"):
+            test_email = st.text_input("Test Email Address", placeholder="test@example.com")
+            if st.button("📧 Send Test Email", type="secondary"):
+                if test_email:
+                    with st.spinner("Sending test email..."):
+                        success, message = emailer.send_test_email(test_email)
+                        if success:
+                            st.success(f"✅ Test email sent successfully to {test_email}")
+                        else:
+                            st.error(f"❌ Test email failed: {message}")
+                else:
+                    st.error("Please enter a test email address")
+
 
 def render_template_setup_simple(emailer):
     """Simple template setup"""
