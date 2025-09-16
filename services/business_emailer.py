@@ -67,7 +67,7 @@ class BusinessEmailer:
         
         try:
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.port) as server:
+            with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
                 server.starttls(context=context)
                 server.login(self.email, self.password)
                 return True, "Email configuration successful"
@@ -273,7 +273,7 @@ class BusinessEmailer:
             
             # Send email
             context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.port) as server:
+            with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
                 server.starttls(context=context)
                 server.login(self.email, self.password)
                 server.send_message(msg)
