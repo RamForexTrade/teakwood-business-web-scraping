@@ -15,9 +15,8 @@ xlsxwriter>=3.1.0
 # Visualization Dependencies
 plotly>=5.15.0
 
-# Email (optional)
-smtplib
-email-mime
+# Email (built-in libraries - no installation needed)
+# smtplib and email are built-in Python libraries
 
 # Search and Web Scraping
 tavily-python>=0.5.0
@@ -28,7 +27,7 @@ psutil>=5.9.0  # Memory monitoring
 gunicorn>=20.1.0  # Production server (backup)
 
 # Development and Debugging
-logging
+# logging is a built-in Python library
 
 # Railway Specific
 # (Railway automatically installs these)
