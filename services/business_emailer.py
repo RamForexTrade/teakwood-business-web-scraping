@@ -293,12 +293,56 @@ class BusinessEmailer:
                     except FileNotFoundError:
                         return False, f"Attachment file not found: {file_path}"
             
-            # Send email
-            context = ssl.create_default_context()
-            with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
-                server.starttls(context=context)
-                server.login(self.email, self.password)
-                server.send_message(msg)
+            # Send email with cloud deployment compatibility
+            import os
+            is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
+
+            if is_cloud:
+                # Try alternative ports for cloud deployment
+                success = False
+                last_error = None
+
+                # Try different SMTP configurations for cloud compatibility
+                cloud_configs = [
+                    {'port': 587, 'use_tls': True},   # Standard TLS
+                    {'port': 465, 'use_ssl': True},   # SSL
+                    {'port': 2525, 'use_tls': True},  # Alternative port (some cloud providers)
+                ]
+
+                for config in cloud_configs:
+                    try:
+                        if config.get('use_ssl'):
+                            # Use SMTP_SSL for port 465
+                            context = ssl.create_default_context()
+                            with smtplib.SMTP_SSL(self.smtp_server, config['port'], timeout=30, context=context) as server:
+                                server.login(self.email, self.password)
+                                server.send_message(msg)
+                                success = True
+                                break
+                        else:
+                            # Use regular SMTP with STARTTLS
+                            context = ssl.create_default_context()
+                            with smtplib.SMTP(self.smtp_server, config['port'], timeout=30) as server:
+                                if config.get('use_tls'):
+                                    server.starttls(context=context)
+                                server.login(self.email, self.password)
+                                server.send_message(msg)
+                                success = True
+                                break
+                    except Exception as e:
+                        last_error = e
+                        continue
+
+                if not success:
+                    raise last_error or Exception("All cloud SMTP configurations failed")
+
+            else:
+                # Local development - use standard SMTP
+                context = ssl.create_default_context()
+                with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
+                    server.starttls(context=context)
+                    server.login(self.email, self.password)
+                    server.send_message(msg)
             
             # Update tracking
             self.email_log['total_sent'] += 1
@@ -323,8 +367,27 @@ class BusinessEmailer:
             })
 
             # Provide more helpful error messages for common cloud deployment issues
-            if "Network is unreachable" in error_msg or "Errno 101" in error_msg:
-                return False, f"Network error: Unable to reach email server. This may be due to cloud deployment network restrictions."
+            import os
+            is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
+
+            if is_cloud and ("Network is unreachable" in error_msg or "Errno 101" in error_msg or "Connection refused" in error_msg):
+                # Try fallback email method for cloud deployment
+                try:
+                    success = self._send_email_fallback(to_email, subject, body)
+                    if success:
+                        # Update tracking for successful fallback
+                        self.email_log['total_sent'] += 1
+                        self.email_log['sent_emails'].append({
+                            'to': to_email,
+                            'subject': subject,
+                            'timestamp': datetime.now().isoformat(),
+                            'method': 'fallback'
+                        })
+                        return True, "Email sent successfully (using fallback method)"
+                except Exception:
+                    pass
+
+                return False, f"Cloud deployment email error: SMTP ports may be blocked. Consider using a cloud email service like SendGrid, Mailgun, or AWS SES for production deployments."
             elif "Authentication failed" in error_msg or "535" in error_msg:
                 return False, f"Authentication failed: Please check your email and app password."
             elif "timeout" in error_msg.lower():
@@ -400,6 +463,30 @@ class BusinessEmailer:
         """Get email sending statistics"""
         return self.email_log.copy()
     
+    def _send_email_fallback(self, to_email: str, subject: str, body: str) -> bool:
+        """
+        Fallback email method for cloud deployments where SMTP is blocked.
+        This is a placeholder for future integration with cloud email services.
+        """
+        try:
+            # Placeholder for cloud email service integration
+            # In a production deployment, you would integrate with:
+            # - SendGrid API
+            # - Mailgun API
+            # - AWS SES
+            # - Postmark
+            # etc.
+
+            # For now, log the email attempt
+            import logging
+            logging.info(f"Fallback email attempt: {to_email} - {subject}")
+
+            # Return False to indicate fallback is not implemented
+            return False
+
+        except Exception:
+            return False
+
     def export_email_log(self) -> str:
         """Export email log as JSON string"""
         return json.dumps(self.email_log, indent=2)

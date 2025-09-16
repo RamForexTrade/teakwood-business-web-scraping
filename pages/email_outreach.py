@@ -1026,7 +1026,28 @@ def render_email_configuration_simple(emailer):
         import os
         is_cloud = any(env_var in os.environ for env_var in ['RAILWAY_ENVIRONMENT', 'RAILWAY_PROJECT_ID'])
         if is_cloud:
-            st.info("🌐 **Cloud Deployment Detected**: Email configuration test may be limited due to network restrictions. Emails will be attempted during campaign.")
+            st.warning("🌐 **Cloud Deployment Detected**: Many cloud platforms block SMTP ports for security. If emails fail to send, consider using a cloud email service like SendGrid, Mailgun, or AWS SES for production use.")
+            with st.expander("📖 Cloud Email Setup Guide"):
+                st.markdown("""
+                **For Production Email in Cloud Deployments:**
+
+                1. **SendGrid** (Recommended)
+                   - Free tier: 100 emails/day
+                   - Easy API integration
+                   - Good deliverability
+
+                2. **Mailgun**
+                   - Free tier: 5,000 emails/month
+                   - Reliable service
+                   - Simple setup
+
+                3. **AWS SES**
+                   - Very low cost
+                   - High volume capable
+                   - Requires AWS account
+
+                **Current Setup**: Using direct SMTP (may not work in all cloud environments)
+                """)
 
         with st.form("email_config"):
             email = st.text_input("📧 Email Address", placeholder="your.email@gmail.com")
