@@ -31,8 +31,13 @@ except ImportError:
     SENDGRID_AVAILABLE = False
     logging.info("SendGrid not installed - using fallback email methods")
 
-# Resend is simpler - just uses requests
-RESEND_AVAILABLE = True  # Uses standard requests library
+# Resend import (official SDK)
+try:
+    import resend
+    RESEND_AVAILABLE = True
+except ImportError:
+    RESEND_AVAILABLE = False
+    logging.info("Resend SDK not installed - using fallback email methods")
 
 @dataclass
 class EmailTemplate:
@@ -593,7 +598,7 @@ class BusinessEmailer:
     
     def _send_email_resend(self, to_email: str, subject: str, html_body: str) -> bool:
         """
-        Send email using Resend API - Modern cloud email service
+        Send email using Resend SDK - Modern cloud email service
         """
         try:
             # Get Resend API key from environment
@@ -602,32 +607,30 @@ class BusinessEmailer:
                 logging.error("Resend API key not found in environment variables")
                 return False
 
-            # Resend API endpoint
-            url = "https://api.resend.com/emails"
+            if not RESEND_AVAILABLE:
+                logging.error("Resend SDK not installed")
+                return False
 
-            # Prepare email data
-            email_data = {
+            # Set API key
+            resend.api_key = api_key
+
+            # Prepare email parameters
+            params = {
                 "from": f"{self.sender_name} <{self.email}>",
                 "to": [to_email],
                 "subject": subject,
                 "html": html_body
             }
 
-            # Headers
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-
-            # Send email
-            response = requests.post(url, json=email_data, headers=headers, timeout=30)
+            # Send email using official SDK
+            email_response = resend.Emails.send(params)
 
             # Check response
-            if response.status_code in [200, 201]:
-                logging.info(f"Resend: Successfully sent to {to_email} (Status: {response.status_code})")
+            if email_response and hasattr(email_response, 'id'):
+                logging.info(f"Resend: Successfully sent to {to_email} (ID: {email_response.id})")
                 return True
             else:
-                logging.error(f"Resend failed with status {response.status_code}: {response.text}")
+                logging.error(f"Resend failed: {email_response}")
                 return False
 
         except Exception as e:

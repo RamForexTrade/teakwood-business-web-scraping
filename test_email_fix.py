@@ -45,6 +45,13 @@ def test_email_service():
     print(f"✅ Resend API Key: {'Available' if resend_key else 'Not Set'}")
     print(f"✅ SendGrid API Key: {'Available' if sendgrid_key else 'Not Set'}")
 
+    # Check Resend SDK availability
+    try:
+        import resend
+        print(f"✅ Resend SDK: Available")
+    except ImportError:
+        print(f"❌ Resend SDK: Not installed - run 'pip install resend'")
+
     # Test email content
     test_email = "dominic@winwood.com.my"  # Replace with your test email
     subject = "Test Email - TeakWood Business"

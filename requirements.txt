@@ -18,6 +18,7 @@ plotly>=5.15.0
 # Email Services
 # smtplib and email are built-in Python libraries
 sendgrid>=6.10.0  # Professional email service for cloud deployments
+resend>=0.6.0  # Modern email service for cloud deployments
 
 # Search and Web Scraping
 tavily-python>=0.5.0
