@@ -1007,12 +1007,14 @@ def render_email_configuration_simple(emailer):
         # Email method selection
         email_method = st.radio(
             "Choose Email Method",
-            options=['smtp', 'cloud_free'],
+            options=['smtp', 'resend', 'sendgrid', 'cloud_free'],
             format_func=lambda x: {
                 'smtp': '📧 SMTP (Gmail/Outlook) - Works locally, may fail in cloud',
-                'cloud_free': '🌐 Free Cloud Email Service - Works in cloud deployments'
+                'resend': '⚡ Resend (Modern) - Recommended for cloud production',
+                'sendgrid': '🚀 SendGrid (Professional) - Alternative cloud option',
+                'cloud_free': '🌐 Free Cloud Email Service - Basic fallback'
             }[x],
-            help="SMTP may be blocked in cloud deployments. Cloud service is recommended for production."
+            help="Resend or SendGrid are recommended for reliable cloud email delivery. SMTP may be blocked in cloud deployments."
         )
 
         if email_method == 'smtp':
@@ -1033,6 +1035,107 @@ def render_email_configuration_simple(emailer):
                 }
                 config = provider_configs[provider]
                 st.info(f"SMTP: {config['smtp_server']}:{config['port']}")
+
+        elif email_method == 'resend':
+            st.info("⚡ **Resend Modern Email Service**")
+
+            # Check if API key is set
+            import os
+            api_key = os.environ.get('RESEND_API_KEY')
+
+            if not api_key:
+                st.error("🔑 **Resend API Key Required**")
+
+                with st.expander("📖 Resend Setup Guide (2 minutes)", expanded=True):
+                    st.markdown("""
+                    ### **Step 1: Create Resend Account**
+                    1. Go to [Resend.com](https://resend.com)
+                    2. Click "Get Started"
+                    3. Sign up with GitHub/Google (very quick!)
+
+                    ### **Step 2: Get API Key**
+                    1. Login to Resend Dashboard
+                    2. Go to "API Keys" section
+                    3. Click "Create API Key"
+                    4. Name: "TeakWood Business App"
+                    5. Copy the API key (starts with `re_`)
+
+                    ### **Step 3: Add to Railway**
+                    1. Go to your Railway dashboard
+                    2. Select your project → Variables tab
+                    3. Add new variable:
+                       - **Name**: `RESEND_API_KEY`
+                       - **Value**: Your Resend API key
+                    4. Save and restart your app
+
+                    ### **Benefits:**
+                    - ✅ **3,000 emails/month FREE** forever
+                    - ✅ **Modern API** - Developer friendly
+                    - ✅ **Works in all cloud deployments**
+                    - ✅ **No SMTP port issues**
+                    - ✅ **Fast setup** - No domain verification needed
+                    - ✅ **Great deliverability**
+                    """)
+
+                st.warning("⚠️ Add `RESEND_API_KEY` to Railway environment variables to continue")
+            else:
+                st.success(f"✅ **Resend API Key Configured** (Key: {api_key[:8]}...)")
+                st.info("💡 **Ready for modern email delivery** - 3,000 emails/month free tier")
+
+            config = {'smtp_server': 'resend_api', 'port': 443}
+
+        elif email_method == 'sendgrid':
+            st.info("🚀 **SendGrid Professional Email Service**")
+
+            # Check if API key is set
+            import os
+            api_key = os.environ.get('SENDGRID_API_KEY')
+
+            if not api_key:
+                st.error("🔑 **SendGrid API Key Required**")
+
+                with st.expander("📖 SendGrid Setup Guide (5 minutes)", expanded=True):
+                    st.markdown("""
+                    ### **Step 1: Create SendGrid Account**
+                    1. Go to [SendGrid.com](https://sendgrid.com)
+                    2. Click "Start for Free"
+                    3. Sign up and verify your email
+
+                    ### **Step 2: Get API Key**
+                    1. Login to SendGrid Dashboard
+                    2. Go to Settings → API Keys
+                    3. Click "Create API Key"
+                    4. Name: "TeakWood Business App"
+                    5. Permissions: "Full Access"
+                    6. Copy the API key (starts with `SG.`)
+
+                    ### **Step 3: Add to Railway**
+                    1. Go to your Railway dashboard
+                    2. Select your project → Variables tab
+                    3. Add new variable:
+                       - **Name**: `SENDGRID_API_KEY`
+                       - **Value**: Your SendGrid API key
+                    4. Save and restart your app
+
+                    ### **Step 4: Verify Sender**
+                    1. In SendGrid: Settings → Sender Authentication
+                    2. Click "Verify a Single Sender"
+                    3. Enter your email details and verify
+
+                    ### **Benefits:**
+                    - ✅ **100 emails/day free** forever
+                    - ✅ **Works in all cloud deployments**
+                    - ✅ **Professional deliverability**
+                    - ✅ **No SMTP port issues**
+                    - ✅ **Detailed analytics**
+                    """)
+
+                st.warning("⚠️ Add `SENDGRID_API_KEY` to Railway environment variables to continue")
+            else:
+                st.success(f"✅ **SendGrid API Key Configured** (Key: {api_key[:8]}...)")
+                st.info("💡 **Ready for professional email delivery** - 100 emails/day free tier")
+
+            config = {'smtp_server': 'sendgrid_api', 'port': 443}
 
         elif email_method == 'cloud_free':
             st.info("🌐 **Free Cloud Email Service (Web3Forms)**")
@@ -1104,6 +1207,26 @@ def render_email_configuration_simple(emailer):
                 email = st.text_input("📧 Email Address", placeholder="your.email@gmail.com")
                 password = st.text_input("🔐 App Password", type="password", help="Use App Password for Gmail")
                 sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+            elif email_method == 'resend':
+                email = st.text_input("📧 From Email Address", placeholder="your.email@company.com", help="Any email address works with Resend")
+                password = "resend_api_token"  # Placeholder for Resend
+                sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+
+                import os
+                if os.environ.get('RESEND_API_KEY'):
+                    st.success("💡 **Resend API configured** - Modern service (3,000 emails/month free)")
+                else:
+                    st.error("💡 **Resend API key required** - Add RESEND_API_KEY to environment variables")
+            elif email_method == 'sendgrid':
+                email = st.text_input("📧 From Email Address", placeholder="your.email@company.com", help="Must be verified in SendGrid")
+                password = "sendgrid_api_token"  # Placeholder for SendGrid
+                sender_name = st.text_input("👤 Display Name", placeholder="Your Company Name")
+
+                import os
+                if os.environ.get('SENDGRID_API_KEY'):
+                    st.success("💡 **SendGrid API configured** - Professional service (100 emails/day free)")
+                else:
+                    st.error("💡 **SendGrid API key required** - Add SENDGRID_API_KEY to environment variables")
             else:  # cloud_free
                 email = st.text_input("📧 From Email Address", placeholder="your.email@company.com", help="This will appear as the sender")
                 password = "cloud_service_token"  # Placeholder for cloud service

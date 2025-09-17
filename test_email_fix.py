@@ -24,21 +24,29 @@ def test_email_service():
     # Create emailer instance
     emailer = BusinessEmailer()
     
-    # Configure for cloud service (Web3Forms)
+    # Test Resend configuration
     emailer.configure_smtp(
-        smtp_server='cloud_api',
+        smtp_server='resend_api',  # Use Resend API
         port=443,
-        email='dominic@winwood.com.my',
-        password='cloud_service_token',
-        sender_name='Winwood'
+        email='dominic@winwood.com.my',  # Your sender email
+        password='resend_api_token',  # Placeholder for Resend
+        sender_name='Winwood Business'
     )
     
     print(f"✅ Email configured: {emailer.is_configured}")
     print(f"✅ Use cloud service: {emailer.use_cloud_service}")
+    print(f"✅ SMTP server: {emailer.smtp_server}")
     print(f"✅ Sender: {emailer.sender_name} <{emailer.email}>")
-    
+
+    # Check email service availability
+    import os
+    resend_key = os.environ.get('RESEND_API_KEY')
+    sendgrid_key = os.environ.get('SENDGRID_API_KEY')
+    print(f"✅ Resend API Key: {'Available' if resend_key else 'Not Set'}")
+    print(f"✅ SendGrid API Key: {'Available' if sendgrid_key else 'Not Set'}")
+
     # Test email content
-    test_email = "test@example.com"  # Replace with your test email
+    test_email = "dominic@winwood.com.my"  # Replace with your test email
     subject = "Test Email - TeakWood Business"
     html_body = """
     <html>
@@ -46,15 +54,16 @@ def test_email_service():
         <h2>Test Email from TeakWood Business</h2>
         <p>Hello,</p>
         <p>This is a test email to verify that the email service is working correctly after the fixes.</p>
-        <p><strong>Fixes applied:</strong></p>
+        <p><strong>Resend Email Service Test - Features:</strong></p>
         <ul>
-            <li>Fixed variable name bug (body vs html_body)</li>
-            <li>Improved Web3Forms API format</li>
-            <li>Added FormSubmit fallback</li>
-            <li>Enhanced error logging</li>
-            <li>Multiple fallback mechanisms</li>
+            <li>✅ Resend API integration (3,000 emails/month free)</li>
+            <li>✅ Modern cloud email service</li>
+            <li>✅ Works in all cloud deployments</li>
+            <li>✅ No SMTP port restrictions</li>
+            <li>✅ Professional email delivery</li>
+            <li>✅ Smart fallback system</li>
         </ul>
-        <p>If you received this email, the service is working! 🎉</p>
+        <p><strong>If you received this email, Resend is working perfectly! 🎉</strong></p>
         <p>Best regards,<br>TeakWood Business Team</p>
     </body>
     </html>

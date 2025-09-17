@@ -19,6 +19,20 @@ from typing import Dict, List, Optional, Tuple, Any
 import asyncio
 from dataclasses import dataclass
 import re
+import requests
+import os
+
+# Email service imports (optional - will fallback if not available)
+try:
+    import sendgrid
+    from sendgrid.helpers.mail import Mail, Email, To, Content
+    SENDGRID_AVAILABLE = True
+except ImportError:
+    SENDGRID_AVAILABLE = False
+    logging.info("SendGrid not installed - using fallback email methods")
+
+# Resend is simpler - just uses requests
+RESEND_AVAILABLE = True  # Uses standard requests library
 
 @dataclass
 class EmailTemplate:
@@ -64,7 +78,12 @@ class BusinessEmailer:
         self.is_configured = True
 
         # Set flag for cloud email service
-        self.use_cloud_service = (smtp_server == 'cloud_api')
+        # Use cloud service for API-based email services
+        self.use_cloud_service = (
+            (smtp_server == 'cloud_api' and password == 'cloud_service_token') or
+            (smtp_server == 'sendgrid_api' and password == 'sendgrid_api_token') or
+            (smtp_server == 'resend_api' and password == 'resend_api_token')
+        )
     
     def test_email_config(self) -> Tuple[bool, str]:
         """Test email configuration with cloud deployment support"""
@@ -73,7 +92,7 @@ class BusinessEmailer:
 
         try:
             # Check if using cloud email service
-            if self.use_cloud_service or self.smtp_server == 'cloud_api':
+            if self.use_cloud_service:
                 # Cloud email service - just validate email format
                 if self._is_valid_email(self.email):
                     return True, "✅ Cloud email service configured successfully (Free tier - works in all cloud deployments)"
@@ -320,59 +339,136 @@ class BusinessEmailer:
             logging.info(f"Cloud environment detected: {is_cloud}")
             logging.info(f"SMTP server: {self.smtp_server}")
 
-            # Use cloud service if configured or if in cloud environment
-            if self.use_cloud_service or (is_cloud and self.smtp_server == 'cloud_api'):
-                # Use cloud email service directly
-                logging.info("Using cloud email service (Web3Forms/FormSubmit)")
-                success = self._send_email_fallback(to_email, subject, html_body)
-                if not success:
-                    raise Exception("Cloud email service failed")
-            elif is_cloud:
-                # Try alternative ports for cloud deployment
+            # Use cloud service only if explicitly configured for cloud service
+            if self.use_cloud_service:
+                # Try professional services first, then fallback to free services
+                logging.info("Using cloud email service")
                 success = False
-                last_error = None
 
-                # Try different SMTP configurations for cloud compatibility
-                cloud_configs = [
-                    {'port': 587, 'use_tls': True},   # Standard TLS
-                    {'port': 465, 'use_ssl': True},   # SSL
-                    {'port': 2525, 'use_tls': True},  # Alternative port (some cloud providers)
-                ]
+                # Try Resend first (modern, reliable)
+                resend_api_key = os.environ.get('RESEND_API_KEY')
+                if resend_api_key and RESEND_AVAILABLE:
+                    logging.info("Attempting Resend (modern cloud service)")
+                    success = self._send_email_resend(to_email, subject, html_body)
+                    if success:
+                        logging.info("Resend: Email sent successfully")
 
-                for config in cloud_configs:
-                    try:
-                        if config.get('use_ssl'):
-                            # Use SMTP_SSL for port 465
-                            context = ssl.create_default_context()
-                            with smtplib.SMTP_SSL(self.smtp_server, config['port'], timeout=30, context=context) as server:
-                                server.login(self.email, self.password)
-                                server.send_message(msg)
-                                success = True
-                                break
-                        else:
-                            # Use regular SMTP with STARTTLS
-                            context = ssl.create_default_context()
-                            with smtplib.SMTP(self.smtp_server, config['port'], timeout=30) as server:
-                                if config.get('use_tls'):
-                                    server.starttls(context=context)
-                                server.login(self.email, self.password)
-                                server.send_message(msg)
-                                success = True
-                                break
-                    except Exception as e:
-                        last_error = e
-                        continue
+                # Try SendGrid if Resend failed or not available
+                if not success:
+                    sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+                    if sendgrid_api_key and SENDGRID_AVAILABLE:
+                        logging.info("Attempting SendGrid (professional service)")
+                        success = self._send_email_sendgrid(to_email, subject, html_body)
+                        if success:
+                            logging.info("SendGrid: Email sent successfully")
+
+                # Fallback to free services if professional services failed
+                if not success:
+                    logging.info("Professional services not available, using free fallback services")
+                    success = self._send_email_fallback(to_email, subject, html_body)
 
                 if not success:
-                    raise last_error or Exception("All cloud SMTP configurations failed")
-
+                    raise Exception("All cloud email services failed")
             else:
-                # Local development - use standard SMTP
-                context = ssl.create_default_context()
-                with smtplib.SMTP(self.smtp_server, self.port, timeout=30) as server:
-                    server.starttls(context=context)
-                    server.login(self.email, self.password)
-                    server.send_message(msg)
+                # Use real SMTP - detect correct server if needed
+                smtp_server = self.smtp_server
+                smtp_port = self.port
+
+                # If smtp_server is 'cloud_api' but we have real credentials, detect the correct SMTP server
+                if self.smtp_server == 'cloud_api' and self.password != 'cloud_service_token':
+                    # Auto-detect SMTP server based on email domain
+                    email_domain = self.email.split('@')[1].lower()
+                    if 'gmail' in email_domain:
+                        smtp_server = 'smtp.gmail.com'
+                        smtp_port = 587
+                    elif 'outlook' in email_domain or 'hotmail' in email_domain or 'live' in email_domain:
+                        smtp_server = 'smtp-mail.outlook.com'
+                        smtp_port = 587
+                    elif 'yahoo' in email_domain:
+                        smtp_server = 'smtp.mail.yahoo.com'
+                        smtp_port = 587
+                    else:
+                        # Generic SMTP attempt
+                        smtp_server = f'smtp.{email_domain}'
+                        smtp_port = 587
+
+                    logging.info(f"Auto-detected SMTP server: {smtp_server}:{smtp_port} for {self.email}")
+
+                # Try SMTP connection
+                if is_cloud:
+                    # Cloud deployment - try multiple configurations
+                    success = False
+                    last_error = None
+
+                    # Try different SMTP configurations for cloud compatibility
+                    cloud_configs = [
+                        {'port': smtp_port, 'use_tls': True},   # Detected/configured port with TLS
+                        {'port': 587, 'use_tls': True},        # Standard TLS
+                        {'port': 465, 'use_ssl': True},        # SSL
+                        {'port': 2525, 'use_tls': True},       # Alternative port (some cloud providers)
+                    ]
+
+                    for config in cloud_configs:
+                        try:
+                            if config.get('use_ssl'):
+                                # Use SMTP_SSL for port 465
+                                context = ssl.create_default_context()
+                                with smtplib.SMTP_SSL(smtp_server, config['port'], timeout=30, context=context) as server:
+                                    server.login(self.email, self.password)
+                                    server.send_message(msg)
+                                    success = True
+                                    logging.info(f"SMTP success with {smtp_server}:{config['port']} (SSL)")
+                                    break
+                            else:
+                                # Use regular SMTP with STARTTLS
+                                context = ssl.create_default_context()
+                                with smtplib.SMTP(smtp_server, config['port'], timeout=30) as server:
+                                    if config.get('use_tls'):
+                                        server.starttls(context=context)
+                                    server.login(self.email, self.password)
+                                    server.send_message(msg)
+                                    success = True
+                                    logging.info(f"SMTP success with {smtp_server}:{config['port']} (TLS)")
+                                    break
+                        except Exception as e:
+                            last_error = e
+                            logging.warning(f"SMTP failed with {smtp_server}:{config['port']} - {str(e)}")
+                            continue
+
+                    if not success:
+                        # SMTP failed in cloud - try professional email services as fallback
+                        fallback_success = False
+
+                        # Try Resend first
+                        resend_api_key = os.environ.get('RESEND_API_KEY')
+                        if resend_api_key and RESEND_AVAILABLE:
+                            logging.info("SMTP failed in cloud, trying Resend fallback")
+                            fallback_success = self._send_email_resend(to_email, subject, html_body)
+                            if fallback_success:
+                                logging.info("Resend fallback: Email sent successfully")
+                                success = True
+
+                        # Try SendGrid if Resend failed
+                        if not fallback_success:
+                            sendgrid_api_key = os.environ.get('SENDGRID_API_KEY')
+                            if sendgrid_api_key and SENDGRID_AVAILABLE:
+                                logging.info("SMTP failed in cloud, trying SendGrid fallback")
+                                fallback_success = self._send_email_sendgrid(to_email, subject, html_body)
+                                if fallback_success:
+                                    logging.info("SendGrid fallback: Email sent successfully")
+                                    success = True
+
+                        if not fallback_success:
+                            logging.error("SMTP failed and no professional email service available")
+                            raise last_error or Exception("SMTP blocked in cloud environment. Please configure Resend or SendGrid for reliable email delivery.")
+                else:
+                    # Local development - use standard SMTP
+                    context = ssl.create_default_context()
+                    with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
+                        server.starttls(context=context)
+                        server.login(self.email, self.password)
+                        server.send_message(msg)
+                        logging.info(f"SMTP success with {smtp_server}:{smtp_port} (local)")
             
             # Update tracking
             self.email_log['total_sent'] += 1
@@ -495,6 +591,89 @@ class BusinessEmailer:
         """Get email sending statistics"""
         return self.email_log.copy()
     
+    def _send_email_resend(self, to_email: str, subject: str, html_body: str) -> bool:
+        """
+        Send email using Resend API - Modern cloud email service
+        """
+        try:
+            # Get Resend API key from environment
+            api_key = os.environ.get('RESEND_API_KEY')
+            if not api_key:
+                logging.error("Resend API key not found in environment variables")
+                return False
+
+            # Resend API endpoint
+            url = "https://api.resend.com/emails"
+
+            # Prepare email data
+            email_data = {
+                "from": f"{self.sender_name} <{self.email}>",
+                "to": [to_email],
+                "subject": subject,
+                "html": html_body
+            }
+
+            # Headers
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+
+            # Send email
+            response = requests.post(url, json=email_data, headers=headers, timeout=30)
+
+            # Check response
+            if response.status_code in [200, 201]:
+                logging.info(f"Resend: Successfully sent to {to_email} (Status: {response.status_code})")
+                return True
+            else:
+                logging.error(f"Resend failed with status {response.status_code}: {response.text}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Resend error: {str(e)}")
+            return False
+
+    def _send_email_sendgrid(self, to_email: str, subject: str, html_body: str) -> bool:
+        """
+        Send email using SendGrid API - Professional cloud email service
+        """
+        try:
+            # Get SendGrid API key from environment
+            api_key = os.environ.get('SENDGRID_API_KEY')
+            if not api_key:
+                logging.error("SendGrid API key not found in environment variables")
+                return False
+
+            if not SENDGRID_AVAILABLE:
+                logging.error("SendGrid library not installed")
+                return False
+
+            # Create SendGrid client
+            sg = sendgrid.SendGridAPIClient(api_key=api_key)
+
+            # Create email message
+            from_email = Email(self.email, self.sender_name)
+            to_email_obj = To(to_email)
+            content = Content("text/html", html_body)
+
+            mail = Mail(from_email, to_email_obj, subject, content)
+
+            # Send email
+            response = sg.send(mail)
+
+            # Check response
+            if response.status_code in [200, 201, 202]:
+                logging.info(f"SendGrid: Successfully sent to {to_email} (Status: {response.status_code})")
+                return True
+            else:
+                logging.error(f"SendGrid failed with status {response.status_code}: {response.body}")
+                return False
+
+        except Exception as e:
+            logging.error(f"SendGrid error: {str(e)}")
+            return False
+
     def _send_email_fallback(self, to_email: str, subject: str, body: str) -> bool:
         """
         Real email sending using Web3Forms - a free email service for cloud deployments.
